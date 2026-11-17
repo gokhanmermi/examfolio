@@ -115,11 +115,10 @@ input.oto,textarea.oto,select.oto{color:var(--info);font-style:italic;border-sty
 table.puan th.grp{background:var(--accent-soft);color:var(--fg);font-size:11px;border-left:2px solid var(--line)}
 table.puan th.alt{font-size:11px;font-weight:500;white-space:normal;max-width:96px;line-height:1.2}
 [hidden]{display:none !important}
-</style>
-
 #dlgYazdir{max-width:none;width:calc(100% - 40px);height:calc(100% - 40px);padding:0;overflow:hidden}
 #dlgYazdir[open]{display:flex;flex-direction:column}
 #yazdirFrame{flex:1;border:0;width:100%;background:#e9ecef}
+</style>
 
 <link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#0f5e6b"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="default"><meta name="apple-mobile-web-app-title" content="ExamFolio"><link rel="apple-touch-icon" href="icon-192.png"><link rel="icon" href="icon-192.png"></head><body>
 <div class="top">
@@ -127,7 +126,7 @@ table.puan th.alt{font-size:11px;font-weight:500;white-space:normal;max-width:96
     <svg class="logo" viewBox="0 0 48 48" aria-hidden="true"><rect x="9" y="4" width="26" height="34" rx="3" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="2"/><rect x="14" y="10" width="26" height="34" rx="3" fill="var(--surface)" stroke="var(--accent)" stroke-width="2"/><path d="M20 28l5 5 10-11" fill="none" stroke="var(--accent)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><line x1="20" y1="18" x2="34" y2="18" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" opacity=".55"/></svg>
     <div class="grow">
       <h1>ExamFolio <span class="tag">Sınav Evrak Stüdyosu</span></h1>
-      <div class="sub">Gökhan Mermi · veriler bu tarayıcıda ve bağlı veri dosyasında saklanır · <span id="surum" title="Sürüm (derleme zamanı)">v2026.11.18-0147</span></div>
+      <div class="sub">Gökhan Mermi · veriler bu tarayıcıda ve bağlı veri dosyasında saklanır · <span id="surum" title="Sürüm (derleme zamanı)">v2026.11.18-0155</span></div>
     </div>
   </div>
   <label style="min-width:190px"><span>Dönem</span><select id="donemSel"></select></label>
@@ -2022,7 +2021,7 @@ const YAZDIR = {
         .sayfa:last-child, .docx-wrapper:last-child > section.docx:last-child { page-break-after: auto; break-after: auto; }
         .yazdirma { display: none; }
       }
-    </style></head><body><script>if("serviceWorker" in navigator && location.protocol==="https:") navigator.serviceWorker.register("sw.js").catch(()=>{});</script></body></html>`); d.close(); return d;
+    </style></he`+`ad><bo`+`dy></bo`+`dy></ht`+`ml>`); d.close(); return d;
   },
   yazdir(){ try{ this.frame.contentWindow.focus(); this.frame.contentWindow.print(); }catch(e){ alert("Yazdırma penceresi açılamadı: " + e.message); } },
   mesaj(t){ document.getElementById("yazdirMsg").textContent = t || ""; },
