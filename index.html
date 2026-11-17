@@ -123,7 +123,7 @@ table.puan th.alt{font-size:11px;font-weight:500;white-space:normal;max-width:96
     <svg class="logo" viewBox="0 0 48 48" aria-hidden="true"><rect x="9" y="4" width="26" height="34" rx="3" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="2"/><rect x="14" y="10" width="26" height="34" rx="3" fill="var(--surface)" stroke="var(--accent)" stroke-width="2"/><path d="M20 28l5 5 10-11" fill="none" stroke="var(--accent)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><line x1="20" y1="18" x2="34" y2="18" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" opacity=".55"/></svg>
     <div class="grow">
       <h1>ExamFolio <span class="tag">Sınav Evrak Stüdyosu</span></h1>
-      <div class="sub">Gökhan Mermi · veriler bu tarayıcıda ve bağlı veri dosyasında saklanır · <span id="surum" title="Sürüm (derleme zamanı)">v2026.11.17-2351</span></div>
+      <div class="sub">Gökhan Mermi · veriler bu tarayıcıda ve bağlı veri dosyasında saklanır · <span id="surum" title="Sürüm (derleme zamanı)">v2026.11.18-0104</span></div>
     </div>
   </div>
   <label style="min-width:190px"><span>Dönem</span><select id="donemSel"></select></label>
@@ -384,6 +384,7 @@ table.puan th.alt{font-size:11px;font-weight:500;white-space:normal;max-width:96
 <dialog id="dlgDrive"><form method="dialog" style="display:grid;gap:12px"><h3 style="margin:0">Google Drive ayarları</h3>
   <div class="help">Veriler Drive'ınızdaki <b>ExamFolio</b> klasöründe <b>examfolio-veri.json</b> olarak tutulur; belgeler aynı klasörün altına dönem/evrak/ders yapısıyla yazılır. Hangi cihazdan açarsanız açın aynı veri gelir. Ücretsizdir; yalnızca bir kez Google Cloud Console'dan bir <b>OAuth istemci kimliği</b> alınır (kurulum yönergesi size ayrıca verildi).</div>
   <label><span>OAuth istemci kimliği (Client ID)</span><input id="drv_client" placeholder="…apps.googleusercontent.com" autocomplete="off"></label>
+  <div class="help">Google Cloud → Credentials → bu istemci → <b>Authorized redirect URIs</b> alanında şu adres bulunmalıdır: <code id="drv_redirect"></code> <button type="button" class="small" id="btnDrvKopya">Kopyala</button></div>
   <label style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" id="drv_oto" style="width:auto"><span>Açılışta otomatik bağlan ve eşitle</span></label>
   <div class="row" style="justify-content:space-between"><button value="cikis" class="small danger" type="button" id="btnDriveCikis">Bağlantıyı kes</button><span class="row"><button value="cancel">Vazgeç</button><button value="ok" class="primary">Kaydet</button></span></div></form></dialog>
 <dialog id="dlgDrivePick"><form method="dialog" style="display:grid;gap:10px;min-height:320px"><h3 style="margin:0" id="pickBaslik">Drive'dan dosya seç</h3><div class="help" id="pickYol"></div><div id="pickListe" style="display:grid;gap:4px;max-height:50vh;overflow:auto"></div><div class="row" style="justify-content:space-between"><button type="button" class="small" id="pickUst">↑ Üst klasör</button><button value="cancel">Vazgeç</button></div></form></dialog>
@@ -1631,28 +1632,37 @@ const DRIVE = {
   ayar(){ try{ return JSON.parse(localStorage.getItem("examfolio.drive")||"{}"); }catch{ return {}; } },
   ayarKaydet(a){ localStorage.setItem("examfolio.drive", JSON.stringify(a)); },
   kullanilabilir(){ return !!this.ayar().clientId && !(window.claude && typeof window.claude.use==="function") && location.protocol !== "file:"; },
-  async gis(){
-    if (window.google?.accounts?.oauth2) return true;
-    await new Promise((res, rej) => { const s = document.createElement("script"); s.src = "https://accounts.google.com/gsi/client"; s.async = true; s.onload = res; s.onerror = () => rej(new Error("Google kimlik betiği yüklenemedi (çevrim dışı?)")); document.head.appendChild(s); });
-    return !!window.google?.accounts?.oauth2;
-  },
-  /** interactive=false: sessiz yenileme (önceden izin verilmişse pencere açılmadan) */
-  async giris(interactive = true){
+  /* Giriş: açılır pencere yerine YÖNLENDİRME (OAuth 2.0 implicit). Kurulu uygulama penceresinde ve
+     açılır-pencere engelleyicilerde sorunsuz çalışır. Google Cloud'da "Authorized redirect URIs" alanına
+     bu sayfanın adresi (örn. https://KULLANICI.github.io/examfolio/) eklenmiş olmalıdır. */
+  yonlendirmeAdresi(){ return location.origin + location.pathname; },
+  /** interactive=false: prompt=none — Google oturumu açıksa sayfa bir kez gidip gelir, ekran gösterilmez */
+  giris(interactive = true){
     const a = this.ayar(); if (!a.clientId) throw new Error("Google istemci kimliği girilmemiş (Drive ayarları)");
-    await this.gis();
-    return new Promise((res, rej) => {
-      this.tc = google.accounts.oauth2.initTokenClient({ client_id: a.clientId, scope: this.SCOPE, prompt: "",
-        callback: (r) => { if (r.error){ rej(new Error(r.error_description || r.error)); return; } this.token = r.access_token; this.exp = Date.now() + (r.expires_in - 60) * 1000; sessionStorage.setItem("examfolio.drive.tok", JSON.stringify({t: this.token, e: this.exp})); res(this.token); },
-        error_callback: (e) => rej(new Error(e?.message || e?.type || "Giriş iptal edildi")) });
-      this.tc.requestAccessToken({ prompt: interactive ? "consent" : "" , hint: a.hint || undefined });
-    });
+    if (!interactive){ if (sessionStorage.getItem("examfolio.drive.deneme")) throw new Error("Drive oturumu yok; “Google Drive'a bağlan”a basın"); sessionStorage.setItem("examfolio.drive.deneme", "1"); }
+    const p = new URLSearchParams({ client_id: a.clientId, redirect_uri: this.yonlendirmeAdresi(), response_type: "token", scope: this.SCOPE,
+      include_granted_scopes: "true", state: "examfolio", prompt: interactive ? "consent" : "none" });
+    if (a.hint) p.set("login_hint", a.hint);
+    location.assign("https://accounts.google.com/o/oauth2/v2/auth?" + p.toString());
+    return new Promise(() => {}); // sayfa yönleniyor
+  },
+  /** Sayfa açılışında: adres çubuğundaki #access_token=… yanıtını alır */
+  donusuIsle(){
+    const h = location.hash || ""; if (!h.includes("access_token=") && !h.includes("error=")) return false;
+    const q = new URLSearchParams(h.slice(1)); if (q.get("state") !== "examfolio") return false;
+    history.replaceState(null, "", location.pathname + location.search);
+    if (q.get("error")){ this.sonHata = q.get("error_description") || q.get("error"); if (/interaction_required|login_required|consent_required/.test(this.sonHata)) this.sonHata = ""; return false; }
+    this.token = q.get("access_token"); this.exp = Date.now() + ((+q.get("expires_in") || 3600) - 60) * 1000;
+    sessionStorage.setItem("examfolio.drive.tok", JSON.stringify({ t: this.token, e: this.exp })); sessionStorage.removeItem("examfolio.drive.deneme");
+    return true;
   },
   async tokenAl(interactive){ if (this.token && Date.now() < this.exp) return this.token;
     try{ const s = JSON.parse(sessionStorage.getItem("examfolio.drive.tok")||"null"); if (s && Date.now() < s.e){ this.token = s.t; this.exp = s.e; return this.token; } }catch{}
+    if (interactive === undefined) throw new Error("Drive oturumunun süresi doldu; “Drive: bağlı” düğmesine basarak yenileyin");
     return this.giris(interactive); },
-  cikis(){ try{ if (this.token) google.accounts.oauth2.revoke(this.token, ()=>{}); }catch{} this.token = null; this.exp = 0; this.hesap = ""; sessionStorage.removeItem("examfolio.drive.tok"); const a = this.ayar(); delete a.oto; this.ayarKaydet(a); },
+  cikis(){ try{ if (this.token) fetch("https://oauth2.googleapis.com/revoke?token=" + encodeURIComponent(this.token), { method: "POST" }); }catch{} this.token = null; this.exp = 0; this.hesap = ""; sessionStorage.removeItem("examfolio.drive.tok"); const a = this.ayar(); delete a.oto; this.ayarKaydet(a); },
   async api(path, opts = {}, tekrar = true){
-    const tok = await this.tokenAl(false);
+    const tok = await this.tokenAl();
     const r = await fetch(path.startsWith("http") ? path : "https://www.googleapis.com/drive/v3/" + path, Object.assign({}, opts, { headers: Object.assign({ Authorization: "Bearer " + tok }, opts.headers || {}) }));
     if (r.status === 401 && tekrar){ this.token = null; sessionStorage.removeItem("examfolio.drive.tok"); return this.api(path, opts, false); }
     if (!r.ok){ const t = await r.text(); throw new Error(`Drive ${r.status}: ${t.slice(0, 200)}`); }
@@ -2690,11 +2700,11 @@ async function driveEsitle(){
   DRIVE.sonEsitleme=Date.now(); driveDurum("Eşitlendi · "+new Date().toLocaleTimeString("tr-TR",{hour:"2-digit",minute:"2-digit"}));
 }
 function driveKaydetGecikmeli(){ if(!driveBagli) return; clearTimeout(_driveZaman); _driveZaman=setTimeout(async()=>{ try{ driveDurum("Drive'a yazılıyor…"); await DRIVE.veriYaz(store); driveDurum("Eşitlendi · "+new Date().toLocaleTimeString("tr-TR",{hour:"2-digit",minute:"2-digit"})); }catch(e){ console.warn(e); driveDurum("Drive'a yazılamadı: "+e.message, true); } }, 1500); }
-function driveAyarAc(){ const a=DRIVE.ayar(); $("#drv_client").value=a.clientId||""; $("#drv_oto").checked=a.oto!==false; $("#dlgDrive").showModal(); }
+function driveAyarAc(){ const a=DRIVE.ayar(); $("#drv_client").value=a.clientId||""; $("#drv_redirect").textContent=DRIVE.yonlendirmeAdresi(); $("#btnDrvKopya").onclick=()=>{ navigator.clipboard.writeText(DRIVE.yonlendirmeAdresi()); toast("Kopyalandı"); }; $("#drv_oto").checked=a.oto!==false; $("#dlgDrive").showModal(); }
 $("#btnDriveAyar").onclick=driveAyarAc;
 $("#dlgDrive").addEventListener("close",()=>{ if($("#dlgDrive").returnValue==="ok"){ const a=DRIVE.ayar(); a.clientId=$("#drv_client").value.trim(); a.oto=$("#drv_oto").checked; DRIVE.ayarKaydet(a); toast("Drive ayarı kaydedildi"); $("#btnDrive").hidden=!a.clientId; if(a.clientId && !driveBagli) driveBaglan(true); } });
 $("#btnDriveCikis").onclick=()=>{ DRIVE.cikis(); driveBagli=false; driveDurum("Bağlantı kesildi"); $("#dlgDrive").close(); };
-$("#btnDrive").onclick=()=>{ if(driveBagli){ driveEsitle().catch(e=>driveDurum("Eşitlenemedi: "+e.message,true)); } else driveBaglan(true); };
+$("#btnDrive").onclick=()=>{ if(driveBagli && DRIVE.token && Date.now()<DRIVE.exp){ driveEsitle().catch(e=>driveDurum("Eşitlenemedi: "+e.message,true)); } else driveBaglan(true); };
 /** Drive dosya seçici: klasörlerde gezinir; seçilen dosyayı File olarak döndürür */
 async function driveSec(baslik, adFiltre){
   if(!driveBagli){ toast("Önce Drive'a bağlanın"); return null; }
@@ -2748,7 +2758,7 @@ else if(window.SEED && window.SEED.paketId && store.paketId!==window.SEED.paketI
   setTimeout(async()=>{ if(await onay(`Bu dosya ${window.SEED.donemler.length} dönem ve ${window.SEED.dersler.length} ders içeren paketlenmiş veri taşıyor. Tarayıcıdaki mevcut verinin yerine paketteki veri yüklensin mi? (Hayır derseniz mevcut veriniz kalır; yedek almayı unutmayın.)`)){ store=migrate(JSON.parse(JSON.stringify(window.SEED))); save(); init(); toast("Paket verisi yüklendi"); } else { store.paketId=window.SEED.paketId; save(); } }, 300);
 }
 init(); yenidenBagla(); htmlYenidenBagla();
-if(DRIVE.kullanilabilir()){ driveDurum(""); if(DRIVE.ayar().oto!==false) driveBaglan(false); } else { $("#btnDrive").hidden=true; $("#btnDriveAyar").hidden=!(location.protocol!=="file:" && !(window.claude&&window.claude.use)); if(location.protocol==="file:") $("#btnDriveAyar").hidden=true; }
+if(DRIVE.kullanilabilir()){ const geldi=DRIVE.donusuIsle(); driveDurum(DRIVE.sonHata?"Bağlanamadı: "+DRIVE.sonHata:"", !!DRIVE.sonHata); if(geldi) driveBaglan(true); else if(DRIVE.ayar().oto!==false && !DRIVE.sonHata) driveBaglan(false); } else { $("#btnDrive").hidden=true; $("#btnDriveAyar").hidden=!(location.protocol!=="file:" && !(window.claude&&window.claude.use)); if(location.protocol==="file:") $("#btnDriveAyar").hidden=true; }
 dlKanal(); if(window.claude && typeof window.claude.use==="function"){ $("#btnVeriBagla").title="claude.ai içinde açıkken dosya bağlanamaz; “Yedek indir/yükle” kullanın"; $("#btnHtmlBagla").title="claude.ai içinde açıkken kullanılamaz; çevrim dışı ExamFolio.html için “Veriyle birlikte paketle” ile indirin"; }
 aiSample().then(sf=>{ if(sf){ $("#btnAI").textContent="✦ Yapay zekâ: bağlı (claude.ai)"; $("#btnAI").title="Bu sayfa claude.ai içinde açık; ✦ düğmeleri Claude'a doğrudan sorar, API anahtarı gerekmez"; } });
 window.__app={get store(){return store}, get cur(){return cur}, uretHepsi, paketHtml, dersSube, setStore(s){ store=s; save(); init(); }};

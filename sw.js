@@ -1,5 +1,5 @@
 // ExamFolio service worker: uygulama kabuğunu önbelleğe alır (çevrim dışı açılış); Google API istekleri ağa gider
-const CACHE = "examfolio-v2026.11.17-2351";
+const CACHE = "examfolio-v2026.11.18-0104";
 const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener("activate", e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
